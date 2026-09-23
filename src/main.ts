@@ -1,4 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
+import { check } from "@tauri-apps/plugin-updater";
+import { relaunch } from "@tauri-apps/plugin-process";
 import { Session } from "./terminal";
 import type { Host, HostInput } from "./types";
 
@@ -207,8 +209,33 @@ async function saveHost(e: Event) {
   await loadHosts();
 }
 
+/* ---------- Updates ---------- */
+async function checkForUpdates(silent = false) {
+  const status = $("#status");
+  try {
+    const update = await check();
+    if (update) {
+      const ok = confirm(
+        `Update ${update.version} is available.\n\nDownload and restart now?`,
+      );
+      if (ok) {
+        status.textContent = "downloading update…";
+        await update.downloadAndInstall();
+        status.textContent = "restarting…";
+        await relaunch();
+      }
+    } else if (!silent) {
+      alert("You're already on the latest version.");
+    }
+  } catch (e) {
+    console.error("update check failed", e);
+    if (!silent) alert(`Update check failed: ${e}`);
+  }
+}
+
 /* ---------- Wire up ---------- */
 $("#btn-theme").onclick = toggleTheme;
+$("#btn-update").onclick = () => void checkForUpdates(false);
 $("#btn-new-host").onclick = () => openHostDialog();
 $("#btn-new-host-2").onclick = () => openHostDialog();
 $("#btn-cancel").onclick = () => ($("#host-dialog") as HTMLDialogElement).close();
@@ -218,3 +245,4 @@ $("#f-auth").addEventListener("change", syncFields);
 
 applyTheme((localStorage.getItem("theme") as "dark" | "light") || "dark");
 void loadHosts();
+void checkForUpdates(true);
