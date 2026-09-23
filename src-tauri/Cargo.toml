@@ -1,6 +1,6 @@
 [package]
 name = "roans-terminal"
-version = "0.1.0"
+version = "0.0.1"
 description = "Local SSH & serial terminal — a Termius alternative"
 authors = ["Roan"]
 edition = "2021"
