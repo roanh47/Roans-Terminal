@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Roans Terminal</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <aside id="sidebar">
+        <div class="brand">
+          <span class="logo">▣</span>
+          <span class="name">Roans Terminal</span>
+        </div>
+        <div class="sidebar-section">
+          <div class="section-head">
+            <span>HOSTS</span>
+            <button id="btn-new-host" class="icon-btn" title="New host">＋</button>
+          </div>
+          <ul id="host-list"></ul>
+        </div>
+        <div class="sidebar-footer">
+          <button id="btn-theme" class="icon-btn" title="Toggle theme">◐</button>
+          <span id="status" class="status">idle</span>
+        </div>
+      </aside>
+
+      <main id="main">
+        <nav id="tabbar"></nav>
+        <div id="term-host"></div>
+        <div id="empty">
+          <div class="empty-inner">
+            <span class="empty-logo">▣</span>
+            <h2>Roans Terminal</h2>
+            <p>Connect to a host to start a session, or add a new one.</p>
+            <button id="btn-new-host-2" class="primary">＋ New host</button>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <dialog id="host-dialog">
+      <form id="host-form">
+        <h2 id="host-dialog-title">New host</h2>
+        <input type="hidden" id="f-id" />
+        <label>Name <input id="f-name" required placeholder="prod-server" /></label>
+        <label>Protocol
+          <select id="f-proto">
+            <option value="ssh">SSH</option>
+            <option value="serial">Serial</option>
+          </select>
+        </label>
+
+        <div id="ssh-fields">
+          <label>Host <input id="f-host" placeholder="192.168.1.10" /></label>
+          <label>Port <input id="f-port" type="number" value="22" /></label>
+          <label>Username <input id="f-user" autocomplete="off" /></label>
+          <label>Auth
+            <select id="f-auth">
+              <option value="password">Password</option>
+              <option value="key">Private key</option>
+            </select>
+          </label>
+          <label id="f-password-wrap">Password <input id="f-password" type="password" autocomplete="new-password" /></label>
+          <label id="f-key-wrap" hidden>Private key path <input id="f-key" placeholder="~/.ssh/id_ed25519" /></label>
+          <label id="f-passphrase-wrap" hidden>Key passphrase <input id="f-passphrase" type="password" autocomplete="new-password" /></label>
+        </div>
+
+        <div id="serial-fields" hidden>
+          <label>Serial port <input id="f-serial-port" placeholder="/dev/ttyUSB0 or COM3" /></label>
+          <label>Baud rate <input id="f-baud" type="number" value="115200" /></label>
+        </div>
+
+        <div class="form-actions">
+          <button type="button" id="btn-cancel" class="ghost">Cancel</button>
+          <button type="submit" class="primary">Save</button>
+        </div>
+      </form>
+    </dialog>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
