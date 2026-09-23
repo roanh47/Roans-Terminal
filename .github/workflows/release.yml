@@ -67,7 +67,7 @@ jobs:
           tagName: v__VERSION__
           releaseName: "Roans Terminal v__VERSION__"
           releaseBody: "See the assets below to download the installer for your platform."
-          releaseDraft: true
+          releaseDraft: false
           prerelease: false
           createUpdaterArtifacts: true
           args: ${{ matrix.args }}
