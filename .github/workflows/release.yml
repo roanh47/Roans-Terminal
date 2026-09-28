@@ -4,6 +4,9 @@ on:
   push:
     tags:
       - "v*"
+      - "!v*-rc*"
+    branches:
+      - pre-release
   workflow_dispatch:
 
 permissions:
@@ -57,6 +60,23 @@ jobs:
       - name: Install frontend dependencies
         run: npm install
 
+      # Een tag-push hoort bij de stabiele release, een push naar de
+      # pre-release branch krijgt een eigen tag met het runnummer erachter,
+      # anders overschrijft hij de stabiele release.
+      - name: Release-instellingen bepalen
+        id: rel
+        shell: bash
+        run: |
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            echo "tag=v__VERSION__" >> "$GITHUB_OUTPUT"
+            echo "name=Roans Terminal v__VERSION__" >> "$GITHUB_OUTPUT"
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=v__VERSION__-rc.${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+            echo "name=Roans Terminal v__VERSION__ rc.${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Build and release
         uses: tauri-apps/tauri-action@v0
         env:
@@ -64,10 +84,10 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          tagName: v__VERSION__
-          releaseName: "Roans Terminal v__VERSION__"
+          tagName: ${{ steps.rel.outputs.tag }}
+          releaseName: ${{ steps.rel.outputs.name }}
           releaseBody: "See the assets below to download the installer for your platform."
           releaseDraft: false
-          prerelease: false
+          prerelease: ${{ steps.rel.outputs.prerelease }}
           createUpdaterArtifacts: true
           args: ${{ matrix.args }}
