@@ -89,5 +89,4 @@ jobs:
           releaseBody: "See the assets below to download the installer for your platform."
           releaseDraft: false
           prerelease: ${{ steps.rel.outputs.prerelease }}
-          createUpdaterArtifacts: true
           args: ${{ matrix.args }}
