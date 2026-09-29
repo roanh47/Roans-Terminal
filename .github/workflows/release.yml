@@ -4,7 +4,6 @@ on:
   push:
     tags:
       - "v*"
-      - "!v*-rc*"
     branches:
       - pre-release
   workflow_dispatch:
@@ -19,11 +18,11 @@ jobs:
       matrix:
         include:
           - platform: macos-latest
-            args: ""
+            bundles: dmg
           - platform: ubuntu-latest
-            args: ""
+            bundles: appimage,deb,rpm
           - platform: windows-latest
-            args: ""
+            bundles: msi
 
     runs-on: ${{ matrix.platform }}
 
@@ -60,34 +59,96 @@ jobs:
       - name: Install frontend dependencies
         run: npm install
 
-      # Een tag-push hoort bij de stabiele release, een push naar de
-      # pre-release branch krijgt een eigen tag met het runnummer erachter,
-      # anders overschrijft hij de stabiele release.
-      - name: Release-instellingen bepalen
-        id: rel
+      # main = stabiel kanaal (tag v*), pre-release branch = prerelease kanaal.
+      # De prerelease kanaal publiceert altijd naar de vaste tag `prerelease`,
+      # zodat de updater een stabiele endpoint-URL heeft.
+      - name: Determine channel
+        id: channel
         shell: bash
         run: |
           if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
-            echo "tag=v__VERSION__" >> "$GITHUB_OUTPUT"
-            echo "name=Roans Terminal v__VERSION__" >> "$GITHUB_OUTPUT"
             echo "prerelease=false" >> "$GITHUB_OUTPUT"
+            echo "suffix=" >> "$GITHUB_OUTPUT"
+            echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+            echo "endpoint=https://github.com/roanh47/Roans-Terminal/releases/latest/download/latest.json" >> "$GITHUB_OUTPUT"
           else
-            echo "tag=v__VERSION__-rc.${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
-            echo "name=Roans Terminal v__VERSION__ rc.${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
             echo "prerelease=true" >> "$GITHUB_OUTPUT"
+            echo "suffix=-prerelease" >> "$GITHUB_OUTPUT"
+            echo "tag=prerelease" >> "$GITHUB_OUTPUT"
+            echo "endpoint=https://github.com/roanh47/Roans-Terminal/releases/download/prerelease/latest.json" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Build and release
-        uses: tauri-apps/tauri-action@v0
+      - name: Build
+        shell: bash
+        run: npm run tauri build -- --bundles ${{ matrix.bundles }}
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          TAURI_CONFIG: '{"plugins":{"updater":{"endpoints":["${{ steps.channel.outputs.endpoint }}"]}}}'
+
+      - name: Rename installers
+        shell: bash
+        run: python3 .github/rename.py
+        env:
+          SUFFIX: ${{ steps.channel.outputs.suffix }}
+
+      - name: Upload bundle
+        uses: actions/upload-artifact@v4
         with:
-          tagName: ${{ steps.rel.outputs.tag }}
-          releaseName: ${{ steps.rel.outputs.name }}
-          releaseBody: "See the assets below to download the installer for your platform."
-          releaseDraft: false
-          prerelease: ${{ steps.rel.outputs.prerelease }}
-          createUpdaterArtifacts: true
-          args: ${{ matrix.args }}
+          name: bundle-${{ matrix.platform }}
+          path: out/*
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Determine channel
+        id: channel
+        shell: bash
+        run: |
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+            echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+            echo "tag=prerelease" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Download all bundles
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Merge latest.json + collect installers
+        run: python3 .github/merge.py
+
+      # De prerelease-tag wordt elke run geforceerd overschreven (vaste tag),
+      # zodat de updater-endpoint altijd naar de nieuwste prerelease wijst.
+      - name: Delete old prerelease (force update)
+        if: steps.channel.outputs.prerelease == 'true'
+        shell: bash
+        run: |
+          gh release delete prerelease --yes 2>/dev/null || true
+          git push origin :refs/tags/prerelease 2>/dev/null || true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.channel.outputs.tag }}
+          prerelease: ${{ steps.channel.outputs.prerelease }}
+          files: |
+            release/*.AppImage
+            release/*.deb
+            release/*.rpm
+            release/*.msi
+            release/*.dmg
+            release/latest.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
