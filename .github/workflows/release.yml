@@ -59,13 +59,13 @@ jobs:
       - name: Install frontend dependencies
         run: npm install
 
-      # main = stabiel kanaal (tag v*), pre-release branch = prerelease kanaal.
-      # De prerelease kanaal publiceert altijd naar de vaste tag `prerelease`,
-      # zodat de updater een stabiele endpoint-URL heeft.
+      # main = stabiel kanaal (tag v*). pre-release branch = prerelease kanaal
+      # met tag v<versie>-prerelease. Eén tag per versie.
       - name: Determine channel
         id: channel
         shell: bash
         run: |
+          VERSION=$(node -p "require('./src-tauri/tauri.conf.json').version")
           if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
             echo "prerelease=false" >> "$GITHUB_OUTPUT"
             echo "suffix=" >> "$GITHUB_OUTPUT"
@@ -74,8 +74,8 @@ jobs:
           else
             echo "prerelease=true" >> "$GITHUB_OUTPUT"
             echo "suffix=-prerelease" >> "$GITHUB_OUTPUT"
-            echo "tag=prerelease" >> "$GITHUB_OUTPUT"
-            echo "endpoint=https://github.com/roanh47/Roans-Terminal/releases/download/prerelease/latest.json" >> "$GITHUB_OUTPUT"
+            echo "tag=v${VERSION}-prerelease" >> "$GITHUB_OUTPUT"
+            echo "endpoint=https://github.com/roanh47/Roans-Terminal/releases/download/v${VERSION}-prerelease/latest.json" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Build
@@ -86,11 +86,12 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           TAURI_CONFIG: '{"plugins":{"updater":{"endpoints":["${{ steps.channel.outputs.endpoint }}"]}}}'
 
-      - name: Rename installers
+      - name: Rename installers + generate latest.json
         shell: bash
         run: python3 .github/rename.py
         env:
           SUFFIX: ${{ steps.channel.outputs.suffix }}
+          TAG: ${{ steps.channel.outputs.tag }}
 
       - name: Upload bundle
         uses: actions/upload-artifact@v4
@@ -111,12 +112,13 @@ jobs:
         id: channel
         shell: bash
         run: |
+          VERSION=$(node -p "require('./src-tauri/tauri.conf.json').version")
           if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
             echo "prerelease=false" >> "$GITHUB_OUTPUT"
             echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
           else
             echo "prerelease=true" >> "$GITHUB_OUTPUT"
-            echo "tag=prerelease" >> "$GITHUB_OUTPUT"
+            echo "tag=v${VERSION}-prerelease" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Download all bundles
@@ -126,17 +128,6 @@ jobs:
 
       - name: Merge latest.json + collect installers
         run: python3 .github/merge.py
-
-      # De prerelease-tag wordt elke run geforceerd overschreven (vaste tag),
-      # zodat de updater-endpoint altijd naar de nieuwste prerelease wijst.
-      - name: Delete old prerelease (force update)
-        if: steps.channel.outputs.prerelease == 'true'
-        shell: bash
-        run: |
-          gh release delete prerelease --yes 2>/dev/null || true
-          git push origin :refs/tags/prerelease 2>/dev/null || true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Release
         uses: softprops/action-gh-release@v2
